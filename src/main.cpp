@@ -18,11 +18,11 @@ int main() {
     std::string command;
     ss >> command;
 
-    if(command == "exit 0") {
+    if(command == "exit") {
       break;
     } else if (command == "echo") {
       std::string output = ss.str();
-      std::cout << output << std::endl;
+      std::cout << output.substr(1) << std::endl;
       continue;
     }    
     std::cout << input << ": command not found" << std::endl;
