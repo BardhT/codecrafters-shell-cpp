@@ -32,8 +32,9 @@ int main() {
       ss >> subcommand;
       if (builtIn.find(subcommand) != builtIn.end()) {
         std::cout << subcommand << " is a shell builtin" << std::endl;
+        continue;
       } else{
-        std::cout << subcommand << ": command not found" << std::endl;
+        std::cout << subcommand << ": not found" << std::endl;
         continue;
       }
     }
