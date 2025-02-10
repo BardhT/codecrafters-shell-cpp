@@ -22,7 +22,7 @@ int main() {
       break;
     } else if (command == "echo") {
       std::string output = ss.str();
-      std::cout << output.substr(1) << std::endl;
+      std::cout << output.substr(5) << std::endl;
       continue;
     }    
     std::cout << input << ": command not found" << std::endl;
