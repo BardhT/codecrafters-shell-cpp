@@ -41,13 +41,15 @@ private:
                 singleQuote = !singleQuote;
             } else if (c == '\"' && !singleQuote) {
                 doubleQuote = !doubleQuote;
-            } else if (c == '\\') {
+            } else if (c == '\\' && doubleQuote) {
                 if (i + 1 < input.size()){
                     char esc = input[i + 1];
                     token += "\\";
                     token += esc;
                     ++i;
                 }
+            } else if(doubleQuote && c == '\'') {
+                token += c;
             } else if (c != '\'' && c != '\"') {
                 token += c;
             }
