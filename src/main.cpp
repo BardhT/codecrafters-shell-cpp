@@ -9,7 +9,7 @@
 #include <sys/wait.h>
 #include <filesystem>
 
-std::unordered_set<std::string> builtIn = {"echo", "exit", "type", "pwd"};
+std::unordered_set<std::string> builtIn = {"echo", "exit", "type", "pwd", "cd"};
 
 int main() {
   // Flush after every std::cout / std:cerr
@@ -21,11 +21,11 @@ int main() {
   std::stringstream senv(env);
 
   // Parse environment
-  std::vector<std::string> envs;
+  std::vector<std::string> dirs;
   std::string e;
 
   while (std::getline(senv, e, ':')) {
-    envs.push_back(e);
+    dirs.push_back(e);
   }
 
   // Get working directory
@@ -73,7 +73,7 @@ int main() {
       } else {
         // Check the PATH directories
         bool path = false;
-        for (std::string s : envs) {
+        for (std::string s : dirs) {
           std::string full = s + "/" + tokens[1];
           if (access(full.c_str(), X_OK) == 0) {
             std::cout << tokens[1] << " is " << full << std::endl;
@@ -88,6 +88,19 @@ int main() {
       }
     } else if (tokens[0] == "pwd") {
       std::cout << dir << std::endl;
+      continue;
+    } else if (tokens[0] == "cd") {
+      if (tokens.size() <= 1) {
+        continue;
+      }
+
+      if (tokens[1][0] == '/'){
+        if (chdir(tokens[1].c_str()) == -1) {
+          std::cout << tokens[0] << ": " << tokens[1] << ": No such file or directory" << std::endl;
+        } else {
+          dir = std::filesystem::current_path();
+        }
+      }
       continue;
     } else {
       pid_t pid = fork();
