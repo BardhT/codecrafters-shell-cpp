@@ -93,14 +93,13 @@ int main() {
       if (tokens.size() <= 1) {
         continue;
       }
-
-      if (tokens[1][0] == '/'){
-        if (chdir(tokens[1].c_str()) == -1) {
-          std::cout << tokens[0] << ": " << tokens[1] << ": No such file or directory" << std::endl;
-        } else {
-          dir = std::filesystem::current_path();
-        }
+      
+      if (chdir(tokens[1].c_str()) == -1) {
+        std::cout << tokens[0] << ": " << tokens[1] << ": No such file or directory" << std::endl;
+      } else {
+        dir = std::filesystem::current_path();
       }
+
       continue;
     } else {
       pid_t pid = fork();
