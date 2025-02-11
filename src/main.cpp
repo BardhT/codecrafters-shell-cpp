@@ -7,29 +7,33 @@
 #include <vector>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <filesystem>
 
-std::unordered_set<std::string> builtIn = {"echo", "exit", "type"};
+std::unordered_set<std::string> builtIn = {"echo", "exit", "type", "pwd"};
 
 int main() {
   // Flush after every std::cout / std:cerr
   std::cout << std::unitbuf;
   std::cerr << std::unitbuf;
 
+  // Extract enviroment
+  char* env = std::getenv("PATH");
+  std::stringstream senv(env);
+
+  // Parse environment
+  std::vector<std::string> envs;
+  std::string e;
+
+  while (std::getline(senv, e, ':')) {
+    envs.push_back(e);
+  }
+
+  // Get working directory
+  std::string dir(std::filesystem::current_path());
+
   while(true) {
     // Uncomment this block to pass the first stage
     std::cout << "$ ";
-
-    // Extract enviroment
-    char* env = std::getenv("PATH");
-    std::stringstream senv(env);
-
-    // Parse environment
-    std::vector<std::string> envs;
-    std::string e;
-
-    while (std::getline(senv, e, ':')) {
-      envs.push_back(e);
-    }
     
     // std::string input;
     std::string input;
@@ -82,6 +86,9 @@ int main() {
         }
         continue;
       }
+    } else if (tokens[0] == "pwd") {
+      std::cout << dir << std::endl;
+      continue;
     } else {
       pid_t pid = fork();
 
