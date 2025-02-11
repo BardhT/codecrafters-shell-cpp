@@ -16,17 +16,6 @@ private:
     std::vector<std::string> pathDirs;
     std::string currentDir;
 
-    // std::vector<std::string> tokenizeInput(const std::string& input) {
-    //     std::stringstream ss(input);
-    //     std::vector<std::string> tokens;
-    //     std::string token;
-        
-    //     while (ss >> token) {
-    //         tokens.push_back(token);
-    //     }
-    //     return tokens;
-    // }
-
     std::vector<std::string> tokenizeInput(const std::string& input) {
         bool singleQuote = false, doubleQuote = false;
         std::vector<std::string> tokens;
