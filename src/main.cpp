@@ -1,7 +1,10 @@
+#include <cstdlib>
 #include <iostream>
 #include <ostream>
 #include <sstream>
 #include <unordered_set>
+#include <vector>
+#include <unistd.h>
 
 std::unordered_set<std::string> builtIn = {"echo", "exit", "type"};
 
@@ -13,6 +16,18 @@ int main() {
   while(true) {
     // Uncomment this block to pass the first stage
     std::cout << "$ ";
+
+    // Extract enviroment
+    char* env = std::getenv("PATH");
+    std::stringstream senv(env);
+
+    // Parse environment
+    std::vector<std::string> envs;
+    std::string e;
+
+    while (std::getline(senv, e, ':')) {
+      envs.push_back(e);
+    }
     
     // std::string input;
     std::string input;
@@ -33,8 +48,20 @@ int main() {
       if (builtIn.find(subcommand) != builtIn.end()) {
         std::cout << subcommand << " is a shell builtin" << std::endl;
         continue;
-      } else{
-        std::cout << subcommand << ": not found" << std::endl;
+      } else {
+        // Check the PATH directories
+        bool path = false;
+        for (std::string s : envs) {
+          std::string full = s + "/" + subcommand;
+          if (access(full.c_str(), X_OK) == 0) {
+            std::cout << subcommand << " is " << full << std::endl;
+            path = true;
+            break;
+          }
+        }
+        if(!path) {
+          std::cout << subcommand << ": not found" << std::endl;
+        }
         continue;
       }
     }
