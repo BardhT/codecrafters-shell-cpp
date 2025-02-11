@@ -90,16 +90,22 @@ int main() {
       std::cout << dir << std::endl;
       continue;
     } else if (tokens[0] == "cd") {
+      int pass = 0;
+
       if (tokens.size() <= 1) {
         continue;
       }
-      
-      if (chdir(tokens[1].c_str()) == -1) {
+
+      if (tokens[1][0] == '~') {
+        if ((pass = chdir(getenv("HOME")) == -1)) {
+          std::cout << tokens[0] << ": " << tokens[1] << ": No such file or directory" << std::endl;
+        }
+      } else if ((pass = chdir(tokens[1].c_str())) == -1) {
         std::cout << tokens[0] << ": " << tokens[1] << ": No such file or directory" << std::endl;
-      } else {
-        dir = std::filesystem::current_path();
       }
 
+      if (pass == 0) dir = std::filesystem::current_path();
+      
       continue;
     } else {
       pid_t pid = fork();
