@@ -1,3 +1,4 @@
+#include <cmath>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -36,6 +37,8 @@ private:
                     token += esc;
                     ++i;
                 }
+            } else if (singleQuote) {
+                token += c;
             } else if(doubleQuote && c == '\'') {
                 token += c;
             } else if (c != '\'' && c != '\"') {
