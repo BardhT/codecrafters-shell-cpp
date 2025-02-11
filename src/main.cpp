@@ -41,10 +41,9 @@ private:
                 singleQuote = !singleQuote;
             } else if (c == '\"' && !singleQuote) {
                 doubleQuote = !doubleQuote;
-            } else if (c == '\\' && doubleQuote) {
+            } else if (c == '\\' && !(doubleQuote || singleQuote)) {
                 if (i + 1 < input.size()){
                     char esc = input[i + 1];
-                    token += "\\";
                     token += esc;
                     ++i;
                 }
