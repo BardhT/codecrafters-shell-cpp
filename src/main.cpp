@@ -67,6 +67,9 @@ private:
 
     void handleType(const std::vector<std::string>& tokens) {
         if (tokens.size() <= 1) return;
+
+        pathDirs.clear();
+        initializePath();
         
         if (builtIn.find(tokens[1]) != builtIn.end()) {
             std::cout << tokens[1] << " is a shell builtin" << std::endl;
