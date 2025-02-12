@@ -14,7 +14,7 @@
 class Shell {
 private:
     std::unordered_set<std::string> builtIn = {"echo", "exit", "type", "pwd", "cd"};
-    std::unordered_set<char> escapedChars = {'\\', '\$', '\"', '\n'};
+    std::unordered_set<char> escapedChars = {'\\', '$', '\"', '\n'};
     std::vector<std::string> pathDirs;
     std::string currentDir;
 
