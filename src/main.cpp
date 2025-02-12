@@ -14,6 +14,7 @@
 class Shell {
 private:
     std::unordered_set<std::string> builtIn = {"echo", "exit", "type", "pwd", "cd"};
+    std::unordered_set<char> escapedChars = {'\\', '\$', '\"', '\n'};
     std::vector<std::string> pathDirs;
     std::string currentDir;
 
@@ -31,19 +32,19 @@ private:
                 singleQuote = !singleQuote;
             } else if (c == '\"' && !singleQuote) {
                 doubleQuote = !doubleQuote;
-            } else if (c == '\\' && !(doubleQuote || singleQuote)) {
-                if (i + 1 < input.size()){
-                    char esc = input[i + 1];
-                    token += esc;
-                    ++i;
+            } else if (c == '\\') {
+                if (singleQuote) {
+                    token += c;
+                } else if (doubleQuote) {
+                    if (i+1 < input.size() && escapedChars.find(input[i+1]) != escapedChars.end()) {
+                        token += input[++i];
+                    } else {
+                        token += c;
+                    }
+                } else if (i+1 < input.size()) {
+                    token += input[++i];
                 }
-            } else if (singleQuote) {
-                token += c;
-            } else if(doubleQuote && c == '\'') {
-                token += c;
-            } else if (c != '\'' && c != '\"') {
-                token += c;
-            }
+            } else token += c;
         }
 
         if (!token.empty()) tokens.push_back(token);
