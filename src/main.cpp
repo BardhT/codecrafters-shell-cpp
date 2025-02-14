@@ -20,8 +20,8 @@ private:
     std::unordered_set<std::string> outRedirect = {">", "1>"};
     std::vector<std::string> pathDirs;
     std::string currentDir;
-    int stdOut;
-    bool out = false;
+    int stdOut, stdError;
+    bool out = false, error = false;
 
     std::vector<std::string> tokenizeInput(const std::string& input) {
         bool singleQuote = false, doubleQuote = false;
@@ -31,9 +31,11 @@ private:
         for (size_t i = 0; i < input.size(); i++) {
             char c = input[i];
             if (c == ' ' && !singleQuote && !doubleQuote) {
-                if (!token.empty() && outRedirect.find(token) == outRedirect.end() && !out) tokens.push_back(token);
+                if (token == "2>") error = true;
+                else if (!token.empty() && outRedirect.find(token) == outRedirect.end() && !out) tokens.push_back(token);
                 else if (outRedirect.find(token) != outRedirect.end()) out = true;
                 else if (out && !token.empty()) handleOutputRedirection(token); 
+                else if (error && !token.empty()) handleErrorRedirection(token);
                 token.clear();
             } else if (c == '\'' && !doubleQuote) {
                 singleQuote = !singleQuote;
@@ -63,12 +65,28 @@ private:
     void handleOutputRedirection(std::string file) {
         int fd = open(file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (fd == -1) {
-            perror("open");
+            // perror("open");
             return;
         }
 
         dup2(fd, STDOUT_FILENO);
         close(fd);
+    }
+
+    void handleErrorRedirection(std::string file) {
+        int fd = open(file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd == -1) {
+            // perror("open");
+            return;
+        }
+
+        dup2(fd, STDERR_FILENO);
+        close(fd);
+    }
+
+    void closeErrorRedirect() {
+        dup2(stdError, STDERR_FILENO);
+        error = false;
     }
 
     void closeOutputRedirect() {
@@ -107,7 +125,7 @@ private:
                 return;
             }
         }
-        std::cout << tokens[1] << ": not found" << std::endl;
+        std::cerr << tokens[1] << ": not found" << std::endl;
     }
 
     void handleCd(const std::vector<std::string>& tokens) {
@@ -119,7 +137,7 @@ private:
         }
 
         if (status == -1) {
-            std::cout << tokens[0] << ": " << tokens[1] << ": No such file or directory" << std::endl;
+            std::cerr << tokens[0] << ": " << tokens[1] << ": No such file or directory" << std::endl;
         } else {
             currentDir = std::filesystem::current_path();
         }
@@ -135,19 +153,19 @@ private:
         pid_t pid = fork();
         
         if (pid < 0) { 
-            perror("fork");
+            // perror("fork");
             return;
         } else if (pid > 0) {  // Parent
             int status;
             if (waitpid(pid, &status, 0) == -1) {
-                perror("waitpid");
+                // perror("waitpid");
                 return;
             }
             
             if (WIFEXITED(status) && WEXITSTATUS(status) == 127) {
                 std::cerr << tokens[0] << ": command not found" << std::endl;
             } else if (WIFSIGNALED(status)) {
-                std::cout << tokens[0] << ": terminated by signal " << WTERMSIG(status) << std::endl;
+                // std::cout << tokens[0] << ": terminated by signal " << WTERMSIG(status) << std::endl;
             } else if (WIFEXITED(status) != 0 && WEXITSTATUS(status) != 0) {
                 // std::cout << tokens[0] << ": exit status " << WEXITSTATUS(status) << std::endl;
             }
@@ -184,12 +202,15 @@ public:
         
         initializePath();
         currentDir = std::filesystem::current_path();
+
+        stdError = dup(STDERR_FILENO);
         stdOut = dup(STDOUT_FILENO);
-        if (stdOut == -1) perror("dup");
+        if (stdOut == -1 || stdError == -1) perror("dup");
     }
 
     ~Shell() {
         close(stdOut);
+        close(stdError);
     }
 
     void run() {
@@ -217,6 +238,7 @@ public:
             }
 
             if (out) closeOutputRedirect();
+            if (error) closeErrorRedirect();
         }
     }
 };
