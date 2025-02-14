@@ -5,8 +5,10 @@
 #include <iostream>
 #include <ostream>
 #include <sstream>
+#include <string>
 #include <unordered_set>
 #include <vector>
+#include <fcntl.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <filesystem>
@@ -15,8 +17,11 @@ class Shell {
 private:
     std::unordered_set<std::string> builtIn = {"echo", "exit", "type", "pwd", "cd"};
     std::unordered_set<char> escapedChars = {'\\', '$', '\"', '\n'};
+    std::unordered_set<std::string> outRedirect = {">", "1>"};
     std::vector<std::string> pathDirs;
     std::string currentDir;
+    int stdOut;
+    bool out = false;
 
     std::vector<std::string> tokenizeInput(const std::string& input) {
         bool singleQuote = false, doubleQuote = false;
@@ -26,7 +31,9 @@ private:
         for (size_t i = 0; i < input.size(); i++) {
             char c = input[i];
             if (c == ' ' && !singleQuote && !doubleQuote) {
-                if (!token.empty()) tokens.push_back(token);
+                if (!token.empty() && outRedirect.find(token) == outRedirect.end() && !out) tokens.push_back(token);
+                else if (outRedirect.find(token) != outRedirect.end()) out = true;
+                else if (out && !token.empty()) handleOutputRedirection(token); 
                 token.clear();
             } else if (c == '\'' && !doubleQuote) {
                 singleQuote = !singleQuote;
@@ -47,9 +54,26 @@ private:
             } else token += c;
         }
 
-        if (!token.empty()) tokens.push_back(token);
+        if (!token.empty() && !out) tokens.push_back(token);
+        else if (!token.empty()) handleOutputRedirection(token);
 
         return tokens;
+    }
+
+    void handleOutputRedirection(std::string file) {
+        int fd = open(file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd == -1) {
+            perror("open");
+            return;
+        }
+
+        dup2(fd, STDOUT_FILENO);
+        close(fd);
+    }
+
+    void closeOutputRedirect() {
+        dup2(stdOut, STDOUT_FILENO);
+        out = false;
     }
 
     void handleEcho(const std::vector<std::string>& tokens) {
@@ -125,7 +149,7 @@ private:
             } else if (WIFSIGNALED(status)) {
                 std::cout << tokens[0] << ": terminated by signal " << WTERMSIG(status) << std::endl;
             } else if (WIFEXITED(status) != 0 && WEXITSTATUS(status) != 0) {
-                std::cout << tokens[0] << ": exit status " << WEXITSTATUS(status) << std::endl;
+                // std::cout << tokens[0] << ": exit status " << WEXITSTATUS(status) << std::endl;
             }
         } else if (pid == 0) {  // Child    
             execvp(tokens[0].c_str(), args.data());
@@ -160,6 +184,12 @@ public:
         
         initializePath();
         currentDir = std::filesystem::current_path();
+        stdOut = dup(STDOUT_FILENO);
+        if (stdOut == -1) perror("dup");
+    }
+
+    ~Shell() {
+        close(stdOut);
     }
 
     void run() {
@@ -185,6 +215,8 @@ public:
             } else {
                 executeExternalCommand(tokens);
             }
+
+            if (out) closeOutputRedirect();
         }
     }
 };
