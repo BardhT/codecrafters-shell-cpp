@@ -24,43 +24,54 @@ private:
     bool out = false, error = false;
 
     std::vector<std::string> tokenizeInput(const std::string& input) {
-        bool singleQuote = false, doubleQuote = false;
         std::vector<std::string> tokens;
         std::string token;
+        bool singleQuote = false;
+        bool doubleQuote = false;
 
-        for (size_t i = 0; i < input.size(); i++) {
+        for (size_t i = 0; i < input.size(); ++i) {
             char c = input[i];
-            if (c == ' ' && !singleQuote && !doubleQuote) {
-                if (token == "2>") error = true;
-                else if (!token.empty() && outRedirect.find(token) == outRedirect.end() && !out) tokens.push_back(token);
-                else if (outRedirect.find(token) != outRedirect.end()) out = true;
-                else if (out && !token.empty()) handleOutputRedirection(token); 
-                else if (error && !token.empty()) handleErrorRedirection(token);
-                token.clear();
-            } else if (c == '\'' && !doubleQuote) {
+
+            if (c == '\'' && !doubleQuote) {
                 singleQuote = !singleQuote;
-            } else if (c == '\"' && !singleQuote) {
+            } 
+            else if (c == '\"' && !singleQuote) {
                 doubleQuote = !doubleQuote;
-            } else if (c == '\\') {
-                if (singleQuote) {
-                    token += c;
-                } else if (doubleQuote) {
-                    if (i+1 < input.size() && escapedChars.find(input[i+1]) != escapedChars.end()) {
+            } 
+            else if (c == '\\' && !singleQuote) {
+                if (doubleQuote) {
+                    // In double quotes, backslash is only special if followed by $, ", \, or newline
+                    if (i + 1 < input.size() && escapedChars.find(input[i + 1]) != escapedChars.end()) {
                         token += input[++i];
                     } else {
                         token += c;
                     }
-                } else if (i+1 < input.size()) {
-                    token += input[++i];
+                } else {
+                    // Outside quotes, backslash always escapes the next character
+                    if (i + 1 < input.size()) {
+                        token += input[++i];
+                    }
                 }
-            } else token += c;
+            } 
+            else if (c == ' ' && !singleQuote && !doubleQuote) {
+                // Split token on space only if not inside quotes
+                if (!token.empty()) {
+                    tokens.push_back(token);
+                    token.clear();
+                }
+            } 
+            else {
+                token += c;
+            }
         }
 
-        if (!token.empty() && !out) tokens.push_back(token);
-        else if (!token.empty()) handleOutputRedirection(token);
+        // Capture the final token after the loop ends
+        if (!token.empty()) {
+            tokens.push_back(token);
+        }
 
         return tokens;
-    }
+}
 
     void handleOutputRedirection(std::string file) {
         int fd = open(file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
@@ -222,6 +233,20 @@ public:
             
             std::vector<std::string> tokens = tokenizeInput(input);
             if (tokens.empty()) continue;
+
+            for (size_t i = 0; i < tokens.size(); ++i) {
+                if (outRedirect.count(tokens[i])) {
+                    handleOutputRedirection(tokens[i+1]);
+                    out = true;
+                    tokens.erase(tokens.begin() + i, tokens.begin() + i + 2); 
+                    i--; // Step back to check the new token at this position
+                } else if (tokens[i] == "2>") {
+                    handleErrorRedirection(tokens[i+1]);
+                    error = true;
+                    tokens.erase(tokens.begin() + i, tokens.begin() + i + 2);
+                    i--;
+                }
+            }
 
             if (tokens[0] == "exit") {
                 break;
