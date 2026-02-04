@@ -18,10 +18,11 @@ private:
     std::unordered_set<std::string> builtIn = {"echo", "exit", "type", "pwd", "cd"};
     std::unordered_set<char> escapedChars = {'\\', '$', '\"', '\n'};
     std::unordered_set<std::string> outRedirect = {">", "1>"};
+    std::unordered_set<std::string> outAppend = {">>", "1>>"};
     std::vector<std::string> pathDirs;
     std::string currentDir;
     int stdOut, stdError;
-    bool out = false, error = false;
+    bool out = false, error = false, append = false;
 
     std::vector<std::string> tokenizeInput(const std::string& input) {
         std::vector<std::string> tokens;
@@ -84,6 +85,17 @@ private:
         close(fd);
     }
 
+    void handleOutputAppend(std::string file) {
+        int fd = open(file.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
+        if (fd == -1) {
+            // perror("open");
+            return;
+        }
+
+        dup2(fd, STDOUT_FILENO);
+        close(fd);
+    }
+
     void handleErrorRedirection(std::string file) {
         int fd = open(file.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
         if (fd == -1) {
@@ -101,6 +113,11 @@ private:
     }
 
     void closeOutputRedirect() {
+        dup2(stdOut, STDOUT_FILENO);
+        out = false;
+    }
+
+    void closeAppendRedirect() {
         dup2(stdOut, STDOUT_FILENO);
         out = false;
     }
@@ -240,6 +257,11 @@ public:
                     out = true;
                     tokens.erase(tokens.begin() + i, tokens.begin() + i + 2); 
                     i--; // Step back to check the new token at this position
+                } else if (outAppend.count(tokens[i])) {
+                    handleOutputAppend(tokens[i+1]);
+                    append = true;
+                    tokens.erase(tokens.begin() + i, tokens.begin() + i + 2);
+                    i--;
                 } else if (tokens[i] == "2>") {
                     handleErrorRedirection(tokens[i+1]);
                     error = true;
@@ -264,6 +286,7 @@ public:
 
             if (out) closeOutputRedirect();
             if (error) closeErrorRedirect();
+            if (append) closeAppendRedirect();
         }
     }
 };
