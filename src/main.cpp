@@ -22,7 +22,7 @@ private:
     std::vector<std::string> pathDirs;
     std::string currentDir;
     int stdOut, stdError;
-    bool out = false, error = false, append = false;
+    bool out = false, error = false, append = false, errorAppend = false;
 
     std::vector<std::string> tokenizeInput(const std::string& input) {
         std::vector<std::string> tokens;
@@ -107,17 +107,23 @@ private:
         close(fd);
     }
 
+    void handleErrorAppend(std::string file) {
+        int fd = open(file.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
+        if (fd == -1) {
+            // perror("open");
+            return;
+        }
+
+        dup2(fd, STDERR_FILENO);
+        close(fd);
+    }
+
     void closeErrorRedirect() {
         dup2(stdError, STDERR_FILENO);
         error = false;
     }
 
     void closeOutputRedirect() {
-        dup2(stdOut, STDOUT_FILENO);
-        out = false;
-    }
-
-    void closeAppendRedirect() {
         dup2(stdOut, STDOUT_FILENO);
         out = false;
     }
@@ -267,6 +273,11 @@ public:
                     error = true;
                     tokens.erase(tokens.begin() + i, tokens.begin() + i + 2);
                     i--;
+                } else if (tokens[i] == "2>>") {
+                    handleErrorAppend(tokens[i+1]);
+                    errorAppend = true;
+                    tokens.erase(tokens.begin() + i, tokens.begin() + i + 2);
+                    i--;
                 }
             }
 
@@ -284,9 +295,8 @@ public:
                 executeExternalCommand(tokens);
             }
 
-            if (out) closeOutputRedirect();
-            if (error) closeErrorRedirect();
-            if (append) closeAppendRedirect();
+            if (out || append) closeOutputRedirect();
+            if (error || errorAppend) closeErrorRedirect();
         }
     }
 };
