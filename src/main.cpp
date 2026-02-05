@@ -1,4 +1,5 @@
 #include <cmath>
+#include <algorithm>
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -12,6 +13,10 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <filesystem>
+#include <readline/readline.h>
+#include <readline/history.h>
+
+namespace fs = std::filesystem;
 
 class Shell {
 private:
@@ -142,18 +147,29 @@ private:
     }
 
     void handleType(const std::vector<std::string>& tokens) {
-        if (tokens.size() <= 1) return;
+        if (tokens.size() < 2) {
+            std::cout << tokens[0] << ": missing argument\n" << "usage: " << tokens[0] << " <command>" << std::endl;
+            return;
+        }
 
-        pathDirs.clear();
-        initializePath();
+        if (pathDirs.empty()) initializePath();
         
         if (builtIn.find(tokens[1]) != builtIn.end()) {
             std::cout << tokens[1] << " is a shell builtin" << std::endl;
             return;
         }
 
+
+        // Check in current directory
+        fs::path localPath = fs::current_path() / tokens[1];
+        if (access(localPath.c_str(), X_OK) == 0) {
+            std::cout << tokens[1] << " is ./" << localPath << std::endl;
+            return;
+        }
+
+        // Search in PATH directories
         for (const std::string& dir : pathDirs) {
-            std::string fullPath = dir + "/" + tokens[1];
+            fs::path fullPath = fs::path(dir) / tokens[1];
             if (access(fullPath.c_str(), X_OK) == 0) {
                 std::cout << tokens[1] << " is " << fullPath << std::endl;
                 return;
@@ -164,16 +180,21 @@ private:
 
     void handleCd(const std::vector<std::string>& tokens) {
         int status = 0;
-        if (tokens.size() == 1 || tokens[1][0] == '~') {
+        
+        if (tokens.size() == 1) {
             status = chdir(getenv("HOME"));
-        } else {
+        } else if (tokens[1][0] == '~') {
+            std::string dir = tokens[1].size() > 1 ? getenv("HOME") + tokens[1].substr(1) : getenv("HOME");
+            status = chdir(dir.c_str());
+        }
+        else {
             status = chdir(tokens[1].c_str());
         }
 
         if (status == -1) {
             std::cerr << tokens[0] << ": " << tokens[1] << ": No such file or directory" << std::endl;
         } else {
-            currentDir = std::filesystem::current_path();
+            currentDir = fs::current_path();
         }
     }
 
@@ -216,6 +237,7 @@ private:
     }
 
     void initializePath() {
+        pathDirs.clear();
         char* env = std::getenv("PATH");
         if (!env) {
             std::cerr << "ERROR: PATH environnment variable not set" << std::endl;
@@ -225,7 +247,18 @@ private:
         std::string path;
 
         while (std::getline(senv, path, ':')) {
-            pathDirs.push_back(path);
+            if (path.empty()) path = ".";
+            
+            try {
+                if (fs::exists(path) && fs::is_directory(path)) {
+                    if (std::find(pathDirs.begin(), pathDirs.end(), path) == pathDirs.end()) {
+                        pathDirs.push_back(path);
+                    }
+                }
+            }
+            catch (const fs::filesystem_error& e) {
+                continue;
+            }
         }
     }
 
@@ -235,7 +268,7 @@ public:
         std::cerr << std::unitbuf;
         
         initializePath();
-        currentDir = std::filesystem::current_path();
+        currentDir = fs::current_path();
 
         stdError = dup(STDERR_FILENO);
         stdOut = dup(STDOUT_FILENO);
@@ -248,14 +281,18 @@ public:
     }
 
     void run() {
+        using_history();
+        
         while(true) {
-            std::cout << "$ ";
+            char* input = readline("$ ");
+
+            if(!input) continue;
+            else add_history(input);
             
-            std::string input;
-            std::getline(std::cin, input);
-            
-            std::vector<std::string> tokens = tokenizeInput(input);
-            if (tokens.empty()) continue;
+            std::vector<std::string> tokens = tokenizeInput(std::string(input));
+
+            free(input);
+            input = NULL;
 
             for (size_t i = 0; i < tokens.size(); ++i) {
                 if (outRedirect.count(tokens[i])) {
