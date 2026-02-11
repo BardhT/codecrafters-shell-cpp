@@ -19,6 +19,7 @@
 namespace fs = std::filesystem;
 
 char **shell_completion(const char *text, int start, int end);
+void initializeCommands(std::vector<std::string> &commands);
 
 class Shell {
 private:
@@ -273,7 +274,7 @@ public:
   Shell() {
     std::cout << std::unitbuf;
     std::cerr << std::unitbuf;
-    
+
     initializePath();
     using_history();
     rl_attempted_completion_function = shell_completion;
@@ -351,21 +352,66 @@ public:
 };
 
 char **shell_completion(const char *text, int start, int end) {
-    if (start == 0) {
-        return rl_completion_matches(text, [](const char *text, int state) -> char* {
-            static std::vector<std::string> commands = {"echo", "exit", "type", "pwd", "cd"};
-            static size_t index = 0;
-            if (state ==0) index = 0;
+  if (start == 0) {
+    return rl_completion_matches(
+        text, [](const char *text, int state) -> char * {
+          static std::vector<std::string> commands;
 
-            while (index < commands.size()) {
-                const std::string& cmd = commands[index++];
-                if (cmd.compare(0, strlen(text), text) == 0) {
-                    return strdup(cmd.c_str());
-                };
-            }
-            return nullptr;
+          if (commands.empty())
+            initializeCommands(commands);
+
+          static size_t index = 0;
+          if (state == 0)
+            index = 0;
+
+          while (index < commands.size()) {
+            const std::string &cmd = commands[index++];
+            if (cmd.compare(0, strlen(text), text) == 0) {
+              return strdup(cmd.c_str());
+            };
+          }
+          return nullptr;
         });
-    } else return nullptr;
+  } else
+    return nullptr;
+}
+
+void initializeCommands(std::vector<std::string> &commands) {
+  // Built in commands
+  commands = {"echo", "exit", "type", "pwd", "cd"};
+
+  // Executables in PATH
+  char *env = std::getenv("PATH");
+  if (!env) {
+    std::cerr << "ERROR: PATH environnment variable not set" << std::endl;
+    return;
+  }
+
+  std::stringstream senv(env);
+  std::string path;
+
+  while (std::getline(senv, path, ':')) {
+    if (path.empty())
+      path = ".";
+
+    try {
+      if (fs::exists(path) && fs::is_directory(path)) {
+        for (const auto &entry : fs::directory_iterator(path)) {
+          if (fs::is_regular_file(entry.path()) &&
+              (entry.status().permissions() & fs::perms::owner_exec) !=
+                  fs::perms::none) {
+            std::string filename = entry.path().filename().string();
+            if (std::find(commands.begin(), commands.end(), filename) ==
+                commands.end()) {
+              commands.push_back(filename);
+            }
+          }
+        }
+      }
+    } catch (const fs::filesystem_error &e) {
+      continue;
+    }
+  }
 }
 
 int main() {
