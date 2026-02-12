@@ -141,8 +141,13 @@ private:
     }
 
     std::string output = tokens[1];
-    for (size_t i = 2; i < tokens.size(); i++) {
-      output += " " + tokens[i];
+    
+    if (output[0] == '$') {
+      output = std::string(getenv(output.substr(1).c_str()));
+    } else {
+      for (size_t i = 2; i < tokens.size(); i++) {
+        output += " " + tokens[i];
+      }
     }
     std::cout << output << std::endl;
   }
