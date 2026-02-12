@@ -1,13 +1,13 @@
 #pragma once
-#include <map>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 class Trie {
 private:
   struct TrieNode {
-    std::map<char, std::unique_ptr<TrieNode>> children;
+    std::unordered_map<char, std::unique_ptr<TrieNode>> children;
     bool isEndOfWord;
 
     TrieNode() : isEndOfWord(false) {}

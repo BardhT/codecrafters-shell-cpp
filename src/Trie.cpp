@@ -1,4 +1,5 @@
 #include "Trie.hpp"
+#include <algorithm>
 #include <memory>
 #include <vector>
 
@@ -28,6 +29,7 @@ std::vector<std::string> Trie::getMatches(const std::string &prefix) {
 
   findWords(curr, prefix, results);
 
+  std::sort(results.begin(), results.end());
   return results;
 }
 
