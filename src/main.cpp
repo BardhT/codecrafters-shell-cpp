@@ -1,3 +1,4 @@
+#include "Trie.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -18,9 +19,6 @@
 
 namespace fs = std::filesystem;
 
-char **shell_completion(const char *text, int start, int end);
-void initializeCommands(std::vector<std::string> &commands);
-
 class Shell {
 private:
   std::unordered_set<std::string> builtIn = {"echo", "exit", "type", "pwd",
@@ -30,6 +28,7 @@ private:
   std::unordered_set<std::string> outAppend = {">>", "1>>"};
   std::vector<std::string> pathDirs;
   std::string currentDir;
+  static Trie complete;
   int stdOut, stdError;
   bool out = false, error = false, append = false, errorAppend = false;
 
@@ -155,9 +154,6 @@ private:
       return;
     }
 
-    if (pathDirs.empty())
-      initializePath();
-
     if (builtIn.find(tokens[1]) != builtIn.end()) {
       std::cout << tokens[1] << " is a shell builtin" << std::endl;
       return;
@@ -245,6 +241,8 @@ private:
 
   void initializePath() {
     pathDirs.clear();
+    complete.clear();
+
     char *env = std::getenv("PATH");
     if (!env) {
       std::cerr << "ERROR: PATH environnment variable not set" << std::endl;
@@ -252,6 +250,9 @@ private:
     }
     std::stringstream senv(env);
     std::string path;
+
+    for (std::string s : builtIn)
+      complete.insert(s);
 
     while (std::getline(senv, path, ':')) {
       if (path.empty())
@@ -262,6 +263,14 @@ private:
           if (std::find(pathDirs.begin(), pathDirs.end(), path) ==
               pathDirs.end()) {
             pathDirs.push_back(path);
+          }
+          for (const auto &entry : fs::directory_iterator(path)) {
+            if (fs::is_regular_file(entry.path()) &&
+                (entry.status().permissions() & fs::perms::owner_exec) !=
+                    fs::perms::none) {
+              std::string filename = entry.path().filename().string();
+              complete.insert(filename);
+            }
           }
         }
       } catch (const fs::filesystem_error &e) {
@@ -349,70 +358,30 @@ public:
         closeErrorRedirect();
     }
   }
+
+  static char **shell_completion(const char *text, int start, int end) {
+    if (start == 0) {
+      return rl_completion_matches(
+          text, [](const char *text, int state) -> char * {
+            static std::vector<std::string> commands;
+            static size_t index = 0;
+
+            if (state == 0) {
+              index = 0;
+              commands = complete.getMatches(std::string(text));
+            }
+
+            if (index < commands.size()) {
+              return strdup(commands[index++].c_str());
+            }
+            return nullptr;
+          });
+    } else
+      return nullptr;
+  }
 };
 
-char **shell_completion(const char *text, int start, int end) {
-  if (start == 0) {
-    return rl_completion_matches(
-        text, [](const char *text, int state) -> char * {
-          static std::vector<std::string> commands;
-
-          if (commands.empty())
-            initializeCommands(commands);
-
-          static size_t index = 0;
-          if (state == 0)
-            index = 0;
-
-          while (index < commands.size()) {
-            const std::string &cmd = commands[index++];
-            if (cmd.compare(0, strlen(text), text) == 0) {
-              return strdup(cmd.c_str());
-            };
-          }
-          return nullptr;
-        });
-  } else
-    return nullptr;
-}
-
-void initializeCommands(std::vector<std::string> &commands) {
-  // Built in commands
-  commands = {"echo", "exit", "type", "pwd", "cd"};
-
-  // Executables in PATH
-  char *env = std::getenv("PATH");
-  if (!env) {
-    std::cerr << "ERROR: PATH environnment variable not set" << std::endl;
-    return;
-  }
-
-  std::stringstream senv(env);
-  std::string path;
-
-  while (std::getline(senv, path, ':')) {
-    if (path.empty())
-      path = ".";
-
-    try {
-      if (fs::exists(path) && fs::is_directory(path)) {
-        for (const auto &entry : fs::directory_iterator(path)) {
-          if (fs::is_regular_file(entry.path()) &&
-              (entry.status().permissions() & fs::perms::owner_exec) !=
-                  fs::perms::none) {
-            std::string filename = entry.path().filename().string();
-            if (std::find(commands.begin(), commands.end(), filename) ==
-                commands.end()) {
-              commands.push_back(filename);
-            }
-          }
-        }
-      }
-    } catch (const fs::filesystem_error &e) {
-      continue;
-    }
-  }
-}
+Trie Shell::complete;
 
 int main() {
   Shell shell;
