@@ -304,7 +304,11 @@ void Shell::handleEcho(const std::vector<std::string> &tokens) {
 }
 
 void Shell::handleHistory(const std::vector<std::string> &tokens) {
-  history_offset = -1;
+  if (tokens.size() > 1) {
+    history_offset = std::stoi(tokens[1]) - 1;
+  } else {
+    history_offset = -1;
+  }
   HIST_ENTRY *line;
 
   while ((line = next_history())) {
