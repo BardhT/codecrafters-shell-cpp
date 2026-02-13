@@ -1,8 +1,13 @@
 #include "Shell.hpp"
 #include <cstddef>
+#include <cstdio>
+#include <ctime>
 #include <filesystem>
 #include <iostream>
 #include <ostream>
+#include <readline/history.h>
+#include <readline/readline.h>
+#include <string>
 #include <string_view>
 #include <system_error>
 #include <unordered_set>
@@ -15,7 +20,10 @@ Shell::Shell() {
 
   initializePath();
   using_history();
+
   rl_attempted_completion_function = shell_completion;
+  history_write_timestamps = 1;
+
   currentDir = fs::current_path();
 
   stdError = dup(STDERR_FILENO);
@@ -33,10 +41,11 @@ void Shell::run() {
   while (true) {
     char *input = readline("$ ");
 
-    if (!input || !*input)
+    if (!input || !*input) {
       continue;
-    else
+    } else {
       add_history(input);
+    }
 
     std::vector<std::string> tokens = tokenizeInput(std::string(input));
 
@@ -80,6 +89,8 @@ void Shell::run() {
       std::cout << currentDir << std::endl;
     } else if (tokens[0] == "cd") {
       handleCd(tokens);
+    } else if (tokens[0] == "history") {
+      handleHistory(tokens);
     } else {
       executeExternalCommand(tokens);
     }
@@ -277,13 +288,28 @@ void Shell::handleEcho(const std::vector<std::string> &tokens) {
   std::string output = tokens[1];
 
   if (output[0] == '$') {
-    output = std::string(getenv(output.substr(1).c_str()));
+    output = output.substr(1);
+    char *var = getenv(output.c_str());
+    if (!var) {
+      std::cerr << "ERROR: " << output << " environnment variable not set" << std::endl;
+      return;
+    }
+    output = std::string(var);
   } else {
     for (size_t i = 2; i < tokens.size(); i++) {
       output += " " + tokens[i];
     }
   }
   std::cout << output << std::endl;
+}
+
+void Shell::handleHistory(const std::vector<std::string> &tokens) {
+  history_offset = -1;
+  HIST_ENTRY *line;
+
+  while ((line = next_history())) {
+    std::cout << '\t' << history_offset + 1 << "  " << line->line << std::endl;
+  }
 }
 
 void Shell::closeErrorRedirect() {

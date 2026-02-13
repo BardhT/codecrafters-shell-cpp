@@ -4,8 +4,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
-#include <readline/history.h>
-#include <readline/readline.h>
 #include <string>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -15,7 +13,7 @@
 class Shell {
 private:
   std::unordered_set<std::string> builtIn = {"echo", "exit", "type", "pwd",
-                                             "cd"};
+                                             "cd", "history"};
   std::unordered_set<char> escapedChars = {'\\', '$', '\"', '\n'};
   std::unordered_set<std::string> outRedirect = {">", "1>"};
   std::unordered_set<std::string> outAppend = {">>", "1>>"};
@@ -35,6 +33,7 @@ private:
   void handleEcho(const std::vector<std::string> &tokens);
   void handleType(const std::vector<std::string> &tokens);
   void handleCd(const std::vector<std::string> &tokens);
+  void handleHistory(const std::vector<std::string> &tokens);
   void executeExternalCommand(const std::vector<std::string> &tokens);
   void initializePath();
 
